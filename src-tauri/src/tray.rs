@@ -1,36 +1,16 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
+    AppHandle,
 };
 use crate::browser::BrowserManager;
 use crate::config::MooddownConfig;
 use crate::kwin::KWinController;
+use crate::settings_server;
 use std::sync::Arc;
 
-pub fn open_settings_window(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.show();
-        let _ = win.set_focus();
-        return;
-    }
-
-    if let Ok(win) = WebviewWindowBuilder::new(
-        app,
-        "main",
-        WebviewUrl::App("index.html".into()),
-    )
-    .title("Mooddown Settings")
-    .inner_size(640.0, 720.0)
-    .resizable(false)
-    .decorations(true)
-    .transparent(false)
-    .center()
-    .visible(true)
-    .build()
-    {
-        let _ = win.set_focus();
-    }
+pub fn open_settings_window(_app: &AppHandle) {
+    settings_server::open_settings_browser();
 }
 
 pub fn setup_tray(app: &AppHandle, browser_mgr: Arc<BrowserManager>) -> Result<(), Box<dyn std::error::Error>> {
@@ -90,6 +70,7 @@ pub fn setup_tray(app: &AppHandle, browser_mgr: Arc<BrowserManager>) -> Result<(
                         open_settings_window(&app_handle);
                     }
                     "quit" => {
+                        settings_server::close_settings_browser();
                         b_mgr.kill_existing();
                         let _ = KWinController::unload();
                         app_handle.exit(0);

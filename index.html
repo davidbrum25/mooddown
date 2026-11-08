@@ -142,10 +142,13 @@
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-medium text-slate-200">Atajo Global (KWin)</div>
-                <div class="text-[11px] text-slate-400">Tecla para desplegar u ocultar el chat</div>
+                <div class="text-[11px] text-slate-400">Haz clic y presiona cualquier combinación (ej. F12, Meta+G, Ctrl+Space)</div>
               </div>
               <div class="flex items-center gap-2">
-                <input type="text" id="input-hotkey" value="F12" class="w-24 px-2.5 py-1 text-center font-mono text-xs rounded-lg bg-black/40 border border-white/10 text-sky-300 focus:outline-none focus:border-sky-500" />
+                <input type="text" id="input-hotkey" value="F12" readonly class="w-40 px-2.5 py-1.5 text-center font-mono text-xs rounded-lg bg-black/40 border border-white/10 text-sky-300 cursor-pointer focus:outline-none focus:border-sky-500 transition-all" title="Haz clic para grabar un nuevo atajo" />
+                <button type="button" id="btn-record-hotkey" class="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-medium text-sky-300 transition-colors">
+                  Grabar
+                </button>
               </div>
             </div>
 

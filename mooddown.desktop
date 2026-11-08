@@ -1,3 +1,4 @@
+#!/usr/bin/env xdg-open
 [Desktop Entry]
 Name=Mooddown
 Comment=Dropdown AI Chat Companion (Gemini, Claude, Grok)

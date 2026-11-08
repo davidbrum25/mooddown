@@ -15,13 +15,64 @@ impl KWinController {
         dir
     }
 
+    pub fn normalize_hotkey(hotkey: &str) -> String {
+        let trimmed = hotkey.trim();
+        if trimmed.is_empty() {
+            return "F12".to_string();
+        }
+        trimmed
+            .replace("Super+", "Meta+")
+            .replace("super+", "Meta+")
+            .replace("Win+", "Meta+")
+            .replace("win+", "Meta+")
+    }
+
+    pub fn shortcut_id_for_hotkey(hotkey: &str) -> String {
+        let normalized = Self::normalize_hotkey(hotkey);
+        let sanitized: String = normalized
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        format!("MooddownToggle_{}", sanitized)
+    }
+
+    pub fn cleanup_old_shortcuts() {
+        if let Ok(output) = Command::new("qdbus6")
+            .args([
+                "org.kde.kglobalaccel",
+                "/component/kwin",
+                "org.kde.kglobalaccel.Component.shortcutNames",
+            ])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    let name = line.trim();
+                    if name.starts_with("MooddownToggle") {
+                        let _ = Command::new("qdbus6")
+                            .args([
+                                "org.kde.kglobalaccel",
+                                "/kglobalaccel",
+                                "org.kde.KGlobalAccel.unregister",
+                                "kwin",
+                                name,
+                            ])
+                            .output();
+                    }
+                }
+            }
+        }
+    }
+
     pub fn generate_script_content(config: &MooddownConfig) -> String {
         let width_pct = config.window.width_percent as f64 / 100.0;
         let height_pct = config.window.height_percent as f64 / 100.0;
         let anim_duration = config.window.animation_duration_ms;
         let autohide = config.general.autohide_on_blur;
         let pinned = config.general.pinned;
-        let hotkey = &config.general.hotkey;
+        let hotkey = Self::normalize_hotkey(&config.general.hotkey);
+        let shortcut_id = Self::shortcut_id_for_hotkey(&config.general.hotkey);
 
         format!(r#"
 // Mooddown KWin 6 Dropdown Controller Script
@@ -56,8 +107,14 @@ impl KWinController {
         var dFile = (w.desktopFileName || "").toLowerCase();
         var caption = (w.caption || "").toLowerCase();
 
-        // Never match the Tauri Settings window itself
-        if (resClass === "mooddown" || resName === "mooddown" || caption.indexOf("mooddown settings") >= 0) {{
+        // Never match the Settings window itself
+        if (resClass === "mooddown" ||
+            resName === "mooddown" ||
+            resClass.indexOf("mooddown-settings") >= 0 ||
+            dFile.indexOf("mooddown-settings") >= 0 ||
+            resClass.indexOf("127.0.0.1") >= 0 ||
+            dFile.indexOf("127.0.0.1") >= 0 ||
+            caption.indexOf("mooddown settings") >= 0) {{
             return false;
         }}
 
@@ -268,7 +325,7 @@ impl KWinController {
     }});
 
     // Register global shortcut with KWin / kglobalaccel
-    registerShortcut("MooddownToggle", "Toggle Mooddown AI Dropdown", "{hotkey}", function() {{
+    registerShortcut("{shortcut_id}", "Toggle Mooddown AI Dropdown ({hotkey})", "{hotkey}", function() {{
         toggleMooddown();
     }});
 
@@ -280,7 +337,8 @@ impl KWinController {
             anim_duration = anim_duration,
             autohide = autohide,
             pinned = pinned,
-            hotkey = hotkey
+            hotkey = hotkey,
+            shortcut_id = shortcut_id
         )
     }
 
@@ -291,8 +349,9 @@ impl KWinController {
 
         let script_path = script_file.to_string_lossy().to_string();
 
-        // Unload existing script if any
+        // Unload existing script and purge stale kglobalaccel shortcut bindings
         let _ = Self::unload();
+        Self::cleanup_old_shortcuts();
 
         // Load script
         let load_output = Command::new("qdbus6")
@@ -320,12 +379,14 @@ impl KWinController {
     }
 
     pub fn invoke_toggle() -> Result<(), String> {
+        let config = MooddownConfig::load();
+        let shortcut_id = Self::shortcut_id_for_hotkey(&config.general.hotkey);
         let output = Command::new("qdbus6")
             .args([
                 "org.kde.kglobalaccel",
                 "/component/kwin",
                 "org.kde.kglobalaccel.Component.invokeShortcut",
-                "MooddownToggle",
+                &shortcut_id,
             ])
             .output()
             .map_err(|e| format!("Failed to invoke shortcut: {}", e))?;

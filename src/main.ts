@@ -30,7 +30,67 @@ interface DetectedBrowser {
   is_available: boolean;
 }
 
+const isTauriEnv = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+async function apiGetConfig(): Promise<MooddownConfig> {
+  if (isTauriEnv) {
+    return await invoke<MooddownConfig>("get_config");
+  }
+  const res = await fetch("/api/config");
+  return await res.json();
+}
+
+async function apiGetBrowsers(): Promise<DetectedBrowser[]> {
+  if (isTauriEnv) {
+    return await invoke<DetectedBrowser[]>("get_detected_browsers");
+  }
+  const res = await fetch("/api/browsers");
+  return await res.json();
+}
+
+async function apiSaveConfig(config: MooddownConfig): Promise<void> {
+  if (isTauriEnv) {
+    await invoke("save_config", { config });
+    return;
+  }
+  const res = await fetch("/api/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+}
+
+async function apiToggleDropdown(): Promise<void> {
+  if (isTauriEnv) {
+    await invoke("toggle_dropdown");
+    return;
+  }
+  await fetch("/api/toggle", { method: "POST" });
+}
+
+async function apiOpenProfile(): Promise<void> {
+  if (isTauriEnv) {
+    await invoke("open_profile_folder");
+    return;
+  }
+  await fetch("/api/open-profile", { method: "POST" });
+}
+
+async function apiCloseSettings(): Promise<void> {
+  if (isTauriEnv) {
+    await invoke("hide_settings_window");
+    return;
+  }
+  await fetch("/api/close", { method: "POST" });
+  window.close();
+}
+
 let currentConfig: MooddownConfig | null = null;
+let isRecordingHotkey = false;
+let previousHotkey = "F12";
 
 // Elements
 const activeUrlDisplay = document.getElementById("active-url-display") as HTMLElement;
@@ -42,6 +102,7 @@ const labelHeight = document.getElementById("label-height") as HTMLElement;
 const inputAnim = document.getElementById("input-anim") as HTMLInputElement;
 const labelAnim = document.getElementById("label-anim") as HTMLElement;
 const inputHotkey = document.getElementById("input-hotkey") as HTMLInputElement;
+const btnRecordHotkey = document.getElementById("btn-record-hotkey") as HTMLButtonElement;
 const toggleAutohide = document.getElementById("toggle-autohide") as HTMLInputElement;
 const togglePinned = document.getElementById("toggle-pinned") as HTMLInputElement;
 const toggleAutostart = document.getElementById("toggle-autostart") as HTMLInputElement;
@@ -71,12 +132,128 @@ function selectProviderCard(providerName: string) {
   }
 }
 
+function mapKeyToQtKey(e: KeyboardEvent): string | null {
+  const ignoredModifiers = ["Control", "Shift", "Alt", "AltGraph", "Meta", "OS", "Super", "Hyper"];
+  if (ignoredModifiers.includes(e.key)) {
+    return null;
+  }
+
+  if (/^F([1-9]|1[0-9]|2[0-4])$/i.test(e.key)) {
+    return e.key.toUpperCase();
+  }
+
+  const code = e.code || "";
+  if (code.startsWith("Key") && code.length === 4) {
+    return code.slice(3).toUpperCase();
+  }
+  if (code.startsWith("Digit") && code.length === 6) {
+    return code.slice(5);
+  }
+
+  const codeMap: Record<string, string> = {
+    Space: "Space",
+    Enter: "Return",
+    NumpadEnter: "Return",
+    Tab: "Tab",
+    Backspace: "Backspace",
+    Delete: "Del",
+    Insert: "Ins",
+    Home: "Home",
+    End: "End",
+    PageUp: "PgUp",
+    PageDown: "PgDown",
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    Backquote: "`",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+  };
+
+  if (codeMap[code]) {
+    return codeMap[code];
+  }
+
+  if (e.key && e.key.length === 1) {
+    return e.key.toUpperCase();
+  }
+
+  return null;
+}
+
+function startRecordingHotkey() {
+  if (isRecordingHotkey) return;
+  isRecordingHotkey = true;
+  previousHotkey = inputHotkey.value || "F12";
+  inputHotkey.value = "Presiona teclas...";
+  inputHotkey.classList.add("border-sky-400", "bg-sky-500/15", "text-white");
+  if (btnRecordHotkey) {
+    btnRecordHotkey.textContent = "Cancelar";
+  }
+  inputHotkey.focus();
+}
+
+function stopRecordingHotkey(newHotkey?: string) {
+  isRecordingHotkey = false;
+  const finalHotkey = newHotkey || previousHotkey;
+  inputHotkey.value = finalHotkey;
+  if (currentConfig) {
+    currentConfig.general.hotkey = finalHotkey;
+  }
+  inputHotkey.classList.remove("border-sky-400", "bg-sky-500/15", "text-white");
+  if (btnRecordHotkey) {
+    btnRecordHotkey.textContent = "Grabar";
+  }
+}
+
+window.addEventListener(
+  "keydown",
+  (e: KeyboardEvent) => {
+    if (!isRecordingHotkey) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    if (e.key === "Escape" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      stopRecordingHotkey(previousHotkey);
+      return;
+    }
+
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Meta");
+
+    const mainKey = mapKeyToQtKey(e);
+    if (!mainKey) {
+      if (parts.length > 0) {
+        inputHotkey.value = `${parts.join("+")}+...`;
+      }
+      return;
+    }
+
+    parts.push(mainKey);
+    stopRecordingHotkey(parts.join("+"));
+  },
+  true
+);
+
 async function loadData() {
   try {
-    const config = await invoke<MooddownConfig>("get_config");
+    const config = await apiGetConfig();
     currentConfig = config;
 
-    // Apply values to UI
     selectProviderCard(config.general.provider);
 
     inputWidth.value = String(config.window.width_percent);
@@ -89,12 +266,12 @@ async function loadData() {
     labelAnim.textContent = `${config.window.animation_duration_ms} ms`;
 
     inputHotkey.value = config.general.hotkey;
+    previousHotkey = config.general.hotkey;
     toggleAutohide.checked = config.general.autohide_on_blur;
     togglePinned.checked = config.general.pinned;
     toggleAutostart.checked = config.general.start_at_boot;
 
-    // Check detected browsers
-    const browsers = await invoke<DetectedBrowser[]>("get_detected_browsers");
+    const browsers = await apiGetBrowsers();
     const available = browsers.filter((b) => b.is_available);
     if (available.length > 0) {
       detectedBrowserName.textContent = `${available[0].name} (${available[0].path})`;
@@ -114,6 +291,20 @@ providerCards.forEach((card) => {
     if (p) selectProviderCard(p);
   });
 });
+
+inputHotkey.addEventListener("click", () => {
+  startRecordingHotkey();
+});
+
+if (btnRecordHotkey) {
+  btnRecordHotkey.addEventListener("click", () => {
+    if (isRecordingHotkey) {
+      stopRecordingHotkey(previousHotkey);
+    } else {
+      startRecordingHotkey();
+    }
+  });
+}
 
 inputWidth.addEventListener("input", () => {
   labelWidth.textContent = `${inputWidth.value}%`;
@@ -142,13 +333,9 @@ toggleAutostart.addEventListener("change", () => {
   if (currentConfig) currentConfig.general.start_at_boot = toggleAutostart.checked;
 });
 
-inputHotkey.addEventListener("change", () => {
-  if (currentConfig) currentConfig.general.hotkey = inputHotkey.value.trim();
-});
-
 btnOpenProfile.addEventListener("click", async () => {
   try {
-    await invoke("open_profile_folder");
+    await apiOpenProfile();
   } catch (err) {
     console.error("Failed to open profile folder:", err);
   }
@@ -156,7 +343,7 @@ btnOpenProfile.addEventListener("click", async () => {
 
 btnTestToggle.addEventListener("click", async () => {
   try {
-    await invoke("toggle_dropdown");
+    await apiToggleDropdown();
   } catch (err) {
     console.error("Failed to toggle dropdown:", err);
   }
@@ -165,6 +352,9 @@ btnTestToggle.addEventListener("click", async () => {
 btnSave.addEventListener("click", async () => {
   if (!currentConfig) return;
   try {
+    if (isRecordingHotkey) {
+      stopRecordingHotkey(previousHotkey);
+    }
     btnSave.disabled = true;
     currentConfig.general.hotkey = inputHotkey.value.trim();
     currentConfig.window.width_percent = parseInt(inputWidth.value, 10);
@@ -174,7 +364,7 @@ btnSave.addEventListener("click", async () => {
     currentConfig.general.pinned = togglePinned.checked;
     currentConfig.general.start_at_boot = toggleAutostart.checked;
 
-    await invoke("save_config", { config: currentConfig });
+    await apiSaveConfig(currentConfig);
 
     saveStatus.style.opacity = "1";
     setTimeout(() => {
@@ -190,7 +380,7 @@ btnSave.addEventListener("click", async () => {
 
 btnClose.addEventListener("click", async () => {
   try {
-    await invoke("hide_settings_window");
+    await apiCloseSettings();
   } catch (err) {
     console.error("Failed to hide window:", err);
   }

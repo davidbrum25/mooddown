@@ -6,6 +6,7 @@ pub mod config;
 #[cfg(target_os = "linux")]
 pub mod dbus_service;
 pub mod kwin;
+pub mod settings_server;
 pub mod tray;
 
 use std::sync::Arc;
@@ -25,6 +26,9 @@ pub fn run() {
     {
         dbus_service::start_dbus_service(browser_manager.clone());
     }
+
+    // Start local Settings HTTP server & Chromium Settings window controller
+    settings_server::start_settings_server(browser_manager.clone());
 
     // Start Chrome DevTools Protocol guardian to block browser hotkeys & internal Chrome windows
     cdp::start_cdp_guardian(BrowserManager::profile_dir());
