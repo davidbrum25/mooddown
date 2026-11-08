@@ -19,6 +19,24 @@ use kwin::KWinController;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    let want_settings = args.iter().any(|a| a == "--settings");
+    let want_toggle = args.iter().any(|a| a == "--toggle");
+    let want_quit = args.iter().any(|a| a == "--quit");
+
+    #[cfg(target_os = "linux")]
+    {
+        if want_quit {
+            let _ = dbus_service::try_forward_to_running_daemon("quit");
+            return;
+        }
+        let action = if want_settings { "settings" } else { "toggle" };
+        if dbus_service::try_forward_to_running_daemon(action) {
+            // Forwarded action to existing Mooddown daemon instance
+            return;
+        }
+    }
+
     let browser_manager = Arc::new(BrowserManager::new());
     let browser_mgr_clone = browser_manager.clone();
 
@@ -36,6 +54,18 @@ pub fn run() {
     let config = MooddownConfig::load();
     let _ = AutostartManager::sync(config.general.start_at_boot);
     let _ = KWinController::install_and_reload(&config);
+
+    if want_settings {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(350));
+            settings_server::open_settings_browser();
+        });
+    } else if want_toggle {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(450));
+            let _ = KWinController::invoke_toggle();
+        });
+    }
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

@@ -38,8 +38,10 @@ pub fn setup_tray(app: &AppHandle, browser_mgr: Arc<BrowserManager>) -> Result<(
         ],
     )?;
 
+    let tray_icon = tauri::include_image!("icons/icon.png");
+
     let _tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip("Mooddown AI Dropdown")

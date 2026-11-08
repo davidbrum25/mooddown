@@ -1,11 +1,29 @@
-#!/usr/bin/env xdg-open
 [Desktop Entry]
+Type=Application
+Version=1.0
 Name=Mooddown
-Comment=Dropdown AI Chat Companion (Gemini, Claude, Grok)
-Exec=mooddown
+GenericName=AI Dropdown Companion
+Comment=Quake-style Dropdown AI Chat Companion (Gemini, Claude, Grok, ChatGPT)
+Exec=mooddown --toggle
 Icon=mooddown
 Terminal=false
-Type=Application
 Categories=Utility;Network;Chat;
+Keywords=AI;Gemini;Claude;Grok;ChatGPT;Dropdown;Assistant;Mooddown;
 StartupNotify=false
 X-KDE-autostart-phase=2
+Actions=Toggle;Settings;Quit;
+
+[Desktop Action Toggle]
+Name=Toggle AI Dropdown
+Name[es]=Abrir / Ocultar Dropdown IA
+Exec=mooddown --toggle
+
+[Desktop Action Settings]
+Name=Settings...
+Name[es]=Configuración...
+Exec=mooddown --settings
+
+[Desktop Action Quit]
+Name=Quit Mooddown
+Name[es]=Salir de Mooddown
+Exec=mooddown --quit

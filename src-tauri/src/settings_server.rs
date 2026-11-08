@@ -13,6 +13,7 @@ use crate::kwin::KWinController;
 const INDEX_HTML: &str = include_str!("../../dist/index.html");
 const APP_CSS: &str = include_str!("../../dist/assets/app.css");
 const APP_JS: &str = include_str!("../../dist/assets/app.js");
+const ICON_SVG: &str = include_str!("../icons/icon.svg");
 
 static SETTINGS_PORT: AtomicU16 = AtomicU16::new(0);
 
@@ -130,6 +131,9 @@ fn handle_client(mut stream: TcpStream, browser_manager: Arc<BrowserManager>) {
         }
         ("GET", "/assets/app.js") => {
             send_response(stream, "200 OK", "application/javascript; charset=utf-8", APP_JS);
+        }
+        ("GET", "/icon.svg") | ("GET", "/favicon.ico") => {
+            send_response(stream, "200 OK", "image/svg+xml; charset=utf-8", ICON_SVG);
         }
         ("GET", "/api/config") => {
             let cfg = MooddownConfig::load();

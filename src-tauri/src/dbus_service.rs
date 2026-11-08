@@ -14,6 +14,41 @@ impl MooddownDbusService {
         let url = config.get_active_url();
         let _ = self.browser_manager.launch_or_navigate(&config.general.browser, &url);
     }
+
+    fn toggle(&self) {
+        let _ = crate::kwin::KWinController::invoke_toggle();
+    }
+
+    fn open_settings(&self) {
+        crate::settings_server::open_settings_browser();
+    }
+
+    fn quit(&self) {
+        crate::settings_server::close_settings_browser();
+        self.browser_manager.kill_existing();
+        let _ = crate::kwin::KWinController::unload();
+        std::process::exit(0);
+    }
+}
+
+pub fn try_forward_to_running_daemon(action: &str) -> bool {
+    let method = match action {
+        "settings" => "OpenSettings",
+        "quit" => "Quit",
+        _ => "Toggle",
+    };
+
+    if let Ok(output) = std::process::Command::new("qdbus6")
+        .args([
+            "com.mooddown.Daemon",
+            "/Mooddown",
+            &format!("com.mooddown.Daemon.{}", method),
+        ])
+        .output()
+    {
+        return output.status.success();
+    }
+    false
 }
 
 pub fn start_dbus_service(browser_manager: Arc<BrowserManager>) {
