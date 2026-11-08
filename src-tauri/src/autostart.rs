@@ -58,7 +58,15 @@ impl AutostartManager {
         }
         let _ = fs::write(&icon_png, APP_ICON_PNG);
 
-        let icon_str = icon_svg_path.to_string_lossy().to_string();
+        // Also write standard sizes for KDE launcher pixmaps
+        let base_icons = dirs::data_dir().unwrap_or_else(|| PathBuf::from(".")).join("icons").join("hicolor");
+        for sz in ["16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128"] {
+            let p = base_icons.join(sz).join("apps").join("mooddown.png");
+            if let Some(parent) = p.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(p, APP_ICON_PNG);
+        }
 
         // Install KDE / FreeDesktop Application Menu entry in ~/.local/share/applications/mooddown.desktop
         let app_desktop_path = Self::app_menu_desktop_path();
@@ -74,7 +82,7 @@ impl AutostartManager {
              GenericName=AI Dropdown Companion\n\
              Comment=Quake-style Dropdown AI Chat Companion (Gemini, Claude, Grok, ChatGPT)\n\
              Exec=\"{exe}\" --toggle\n\
-             Icon={icon}\n\
+             Icon=mooddown\n\
              Terminal=false\n\
              Categories=Utility;Network;Chat;\n\
              Keywords=AI;Gemini;Claude;Grok;ChatGPT;Dropdown;Assistant;Mooddown;\n\
@@ -95,8 +103,7 @@ impl AutostartManager {
              Name=Quit Mooddown\n\
              Name[es]=Salir de Mooddown\n\
              Exec=\"{exe}\" --quit\n",
-            exe = exe_str,
-            icon = icon_str
+            exe = exe_str
         );
 
         fs::write(&app_desktop_path, content)
