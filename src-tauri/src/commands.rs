@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Manager, State};
 use std::sync::Arc;
+use crate::autostart::AutostartManager;
 use crate::browser::{BrowserManager, DetectedBrowser};
 use crate::config::MooddownConfig;
 use crate::kwin::KWinController;
@@ -17,6 +18,9 @@ pub fn get_config() -> Result<MooddownConfig, String> {
 pub fn save_config(config: MooddownConfig, state: State<'_, AppState>) -> Result<(), String> {
     let old_config = MooddownConfig::load();
     config.save()?;
+
+    // Sync system autostart entry
+    let _ = AutostartManager::sync(config.general.start_at_boot);
 
     // Reload KWin script with updated geometry/animation/hotkey settings
     let _ = KWinController::install_and_reload(&config);

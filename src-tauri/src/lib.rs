@@ -1,3 +1,4 @@
+pub mod autostart;
 pub mod browser;
 pub mod cdp;
 pub mod commands;
@@ -9,6 +10,7 @@ pub mod tray;
 
 use std::sync::Arc;
 use tauri::RunEvent;
+use autostart::AutostartManager;
 use browser::BrowserManager;
 use commands::AppState;
 use config::MooddownConfig;
@@ -28,6 +30,7 @@ pub fn run() {
     cdp::start_cdp_guardian(BrowserManager::profile_dir());
 
     let config = MooddownConfig::load();
+    let _ = AutostartManager::sync(config.general.start_at_boot);
     let _ = KWinController::install_and_reload(&config);
 
     let app = tauri::Builder::default()

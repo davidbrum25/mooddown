@@ -44,6 +44,7 @@ const labelAnim = document.getElementById("label-anim") as HTMLElement;
 const inputHotkey = document.getElementById("input-hotkey") as HTMLInputElement;
 const toggleAutohide = document.getElementById("toggle-autohide") as HTMLInputElement;
 const togglePinned = document.getElementById("toggle-pinned") as HTMLInputElement;
+const toggleAutostart = document.getElementById("toggle-autostart") as HTMLInputElement;
 const detectedBrowserName = document.getElementById("detected-browser-name") as HTMLElement;
 const btnOpenProfile = document.getElementById("btn-open-profile") as HTMLButtonElement;
 const btnTestToggle = document.getElementById("btn-test-toggle") as HTMLButtonElement;
@@ -90,6 +91,7 @@ async function loadData() {
     inputHotkey.value = config.general.hotkey;
     toggleAutohide.checked = config.general.autohide_on_blur;
     togglePinned.checked = config.general.pinned;
+    toggleAutostart.checked = config.general.start_at_boot;
 
     // Check detected browsers
     const browsers = await invoke<DetectedBrowser[]>("get_detected_browsers");
@@ -136,6 +138,10 @@ togglePinned.addEventListener("change", () => {
   if (currentConfig) currentConfig.general.pinned = togglePinned.checked;
 });
 
+toggleAutostart.addEventListener("change", () => {
+  if (currentConfig) currentConfig.general.start_at_boot = toggleAutostart.checked;
+});
+
 inputHotkey.addEventListener("change", () => {
   if (currentConfig) currentConfig.general.hotkey = inputHotkey.value.trim();
 });
@@ -166,6 +172,7 @@ btnSave.addEventListener("click", async () => {
     currentConfig.window.animation_duration_ms = parseInt(inputAnim.value, 10);
     currentConfig.general.autohide_on_blur = toggleAutohide.checked;
     currentConfig.general.pinned = togglePinned.checked;
+    currentConfig.general.start_at_boot = toggleAutostart.checked;
 
     await invoke("save_config", { config: currentConfig });
 
