@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Mooddown
+Comment=Dropdown AI Chat Companion (Gemini, Claude, Grok)
+Exec=mooddown
+Icon=mooddown
+Terminal=false
+Type=Application
+Categories=Utility;Network;Chat;
+StartupNotify=false
+X-KDE-autostart-phase=2

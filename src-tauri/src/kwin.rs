@@ -1,0 +1,299 @@
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use crate::config::MooddownConfig;
+
+pub struct KWinController;
+
+impl KWinController {
+    pub const SCRIPT_NAME: &'static str = "mooddown";
+
+    pub fn script_dir() -> PathBuf {
+        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+        let dir = base.join("kwin").join("scripts").join("mooddown");
+        let _ = fs::create_dir_all(&dir);
+        dir
+    }
+
+    pub fn generate_script_content(config: &MooddownConfig) -> String {
+        let width_pct = config.window.width_percent as f64 / 100.0;
+        let height_pct = config.window.height_percent as f64 / 100.0;
+        let anim_duration = config.window.animation_duration_ms;
+        let autohide = config.general.autohide_on_blur;
+        let pinned = config.general.pinned;
+        let hotkey = &config.general.hotkey;
+
+        format!(r#"
+// Mooddown KWin 6 Dropdown Controller Script
+(function() {{
+    var widthPct = {width_pct};
+    var heightPct = {height_pct};
+    var animDuration = {anim_duration};
+    var autoHideOnBlur = {autohide};
+    var isPinned = {pinned};
+    var isAnimating = false;
+    var targetWindow = null;
+    var currentStep = 0;
+    var totalSteps = Math.max(6, Math.round(animDuration / 16));
+    var slideTimer = new QTimer();
+    slideTimer.interval = 16;
+    slideTimer.singleShot = false;
+
+    var startY = 0;
+    var targetY = 0;
+    var currentX = 0;
+    var currentW = 0;
+    var currentH = 0;
+    var isSlidingDown = true;
+    var lastShowTime = 0;
+    var lastAutoHideTime = 0;
+
+    function isMooddownChatWindow(w) {{
+        if (!w || !w.normalWindow) return false;
+        var resClass = (w.resourceClass || "").toLowerCase();
+        var resName = (w.resourceName || "").toLowerCase();
+        var dFile = (w.desktopFileName || "").toLowerCase();
+        var caption = (w.caption || "").toLowerCase();
+
+        // Never match the Tauri Settings window itself
+        if (resClass === "mooddown" || resName === "mooddown" || caption.indexOf("mooddown settings") >= 0) {{
+            return false;
+        }}
+
+        if (resClass.indexOf("mooddown-app") >= 0 ||
+            dFile.indexOf("mooddown-app") >= 0 ||
+            resClass.indexOf("chrome-gemini") >= 0 ||
+            resClass.indexOf("chrome-claude") >= 0 ||
+            resClass.indexOf("chrome-grok") >= 0 ||
+            resClass.indexOf("chrome-chatgpt") >= 0 ||
+            resClass.indexOf("chrome-aistudio") >= 0 ||
+            dFile.indexOf("chrome-gemini") >= 0 ||
+            dFile.indexOf("chrome-claude") >= 0 ||
+            dFile.indexOf("chrome-grok") >= 0 ||
+            dFile.indexOf("chrome-chatgpt") >= 0 ||
+            dFile.indexOf("chrome-aistudio") >= 0) {{
+            return true;
+        }}
+        return false;
+    }}
+
+    function findMooddownWindow() {{
+        var windows = workspace.windowList();
+        for (var i = 0; i < windows.length; i++) {{
+            var w = windows[i];
+            if (isMooddownChatWindow(w)) {{
+                return w;
+            }}
+        }}
+        return null;
+    }}
+
+    function applyWindowProperties(w) {{
+        w.keepAbove = true;
+        w.skipTaskbar = true;
+        w.skipPager = true;
+        w.skipSwitcher = true;
+        w.onAllDesktops = true;
+        w.noBorder = true;
+    }}
+
+    function getTargetScreenArea() {{
+        var pos = workspace.cursorPos;
+        var screen = workspace.screenAt ? workspace.screenAt(pos) : workspace.activeScreen;
+        var clientArea = workspace.clientArea ? workspace.clientArea(0, screen, workspace.currentDesktop) : screen.geometry;
+        return clientArea;
+    }}
+
+    slideTimer.timeout.connect(function() {{
+        try {{
+            if (!targetWindow) {{
+                slideTimer.stop();
+                isAnimating = false;
+                return;
+            }}
+
+            currentStep++;
+            var progress = Math.min(1.0, currentStep / totalSteps);
+            var eased = 1 - Math.pow(1 - progress, 3);
+            var newY = Math.round(startY + (targetY - startY) * eased);
+
+            targetWindow.frameGeometry = {{
+                x: currentX,
+                y: newY,
+                width: currentW,
+                height: currentH
+            }};
+
+            if (progress >= 1.0) {{
+                slideTimer.stop();
+                isAnimating = false;
+                if (!isSlidingDown) {{
+                    targetWindow.minimized = true;
+                }} else {{
+                    workspace.activeWindow = targetWindow;
+                }}
+            }}
+        }} catch (err) {{
+            console.log("[Mooddown] Animation error: " + err);
+            slideTimer.stop();
+            isAnimating = false;
+        }}
+    }});
+
+    function slideDown(w) {{
+        if (!w) return;
+        lastShowTime = Date.now();
+        var area = getTargetScreenArea();
+        currentW = Math.round(area.width * widthPct);
+        currentH = Math.round(area.height * heightPct);
+        currentX = Math.round(area.x + (area.width - currentW) / 2);
+        targetY = Math.round(area.y);
+        startY = Math.round(area.y - currentH);
+
+        applyWindowProperties(w);
+        w.minimized = false;
+        w.frameGeometry = {{
+            x: currentX,
+            y: startY,
+            width: currentW,
+            height: currentH
+        }};
+        workspace.activeWindow = w;
+
+        targetWindow = w;
+        isSlidingDown = true;
+        currentStep = 0;
+        isAnimating = true;
+        slideTimer.start();
+    }}
+
+    function slideUp(w) {{
+        if (!w) return;
+        var area = getTargetScreenArea();
+        currentX = Math.round(w.frameGeometry.x);
+        currentW = Math.round(w.frameGeometry.width);
+        currentH = Math.round(w.frameGeometry.height);
+        startY = Math.round(w.frameGeometry.y);
+        targetY = Math.round(area.y - currentH);
+
+        targetWindow = w;
+        isSlidingDown = false;
+        currentStep = 0;
+        isAnimating = true;
+        slideTimer.start();
+    }}
+
+    function toggleMooddown() {{
+        if (isAnimating) return;
+
+        // Avoid bounce if auto-hide just closed the window from a tray click
+        if (Date.now() - lastAutoHideTime < 350) return;
+
+        var w = findMooddownWindow();
+        if (!w) {{
+            console.log("[Mooddown] Chat window not found. Requesting daemon to launch it via D-Bus...");
+            callDBus("com.mooddown.Daemon", "/Mooddown", "com.mooddown.Daemon", "LaunchBrowser");
+            return;
+        }}
+
+        if (w.minimized) {{
+            slideDown(w);
+        }} else {{
+            slideUp(w);
+        }}
+    }}
+
+    // Style any existing window if script was reloaded while window was open
+    var existing = findMooddownWindow();
+    if (existing) {{
+        applyWindowProperties(existing);
+    }}
+
+    // Automatically style and slide down the chat window as soon as Chrome creates it
+    workspace.windowAdded.connect(function(w) {{
+        if (isMooddownChatWindow(w)) {{
+            console.log("[Mooddown] Detected new AI chat window: " + w.resourceClass);
+            slideDown(w);
+        }}
+    }});
+
+    // Auto-hide when focus is lost
+    workspace.windowActivated.connect(function(client) {{
+        if (!autoHideOnBlur || isPinned || isAnimating || !client) return;
+        if (Date.now() - lastShowTime < 400) return;
+        var w = findMooddownWindow();
+        if (w && !w.minimized && client !== w) {{
+            lastAutoHideTime = Date.now();
+            slideUp(w);
+        }}
+    }});
+
+    // Register global shortcut with KWin / kglobalaccel
+    registerShortcut("MooddownToggle", "Toggle Mooddown AI Dropdown", "{hotkey}", function() {{
+        toggleMooddown();
+    }});
+
+    console.log("[Mooddown] KWin 6 Dropdown script initialized successfully!");
+}})();
+"#,
+            width_pct = width_pct,
+            height_pct = height_pct,
+            anim_duration = anim_duration,
+            autohide = autohide,
+            pinned = pinned,
+            hotkey = hotkey
+        )
+    }
+
+    pub fn install_and_reload(config: &MooddownConfig) -> Result<(), String> {
+        let script_file = Self::script_dir().join("code.js");
+        let content = Self::generate_script_content(config);
+        fs::write(&script_file, content).map_err(|e| format!("Failed to write KWin script: {}", e))?;
+
+        let script_path = script_file.to_string_lossy().to_string();
+
+        // Unload existing script if any
+        let _ = Self::unload();
+
+        // Load script
+        let load_output = Command::new("qdbus6")
+            .args(["org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.loadScript", &script_path, Self::SCRIPT_NAME])
+            .output()
+            .map_err(|e| format!("Failed to execute qdbus6: {}", e))?;
+
+        if !load_output.status.success() {
+            return Err(String::from_utf8_lossy(&load_output.stderr).to_string());
+        }
+
+        // Start scripting
+        let _ = Command::new("qdbus6")
+            .args(["org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.start"])
+            .output();
+
+        Ok(())
+    }
+
+    pub fn unload() -> Result<(), String> {
+        let _ = Command::new("qdbus6")
+            .args(["org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.unloadScript", Self::SCRIPT_NAME])
+            .output();
+        Ok(())
+    }
+
+    pub fn invoke_toggle() -> Result<(), String> {
+        let output = Command::new("qdbus6")
+            .args([
+                "org.kde.kglobalaccel",
+                "/component/kwin",
+                "org.kde.kglobalaccel.Component.invokeShortcut",
+                "MooddownToggle",
+            ])
+            .output()
+            .map_err(|e| format!("Failed to invoke shortcut: {}", e))?;
+
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        }
+        Ok(())
+    }
+}
