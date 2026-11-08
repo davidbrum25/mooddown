@@ -124,14 +124,22 @@ impl BrowserManager {
         let profile_dir = Self::profile_dir();
         let profile_str = profile_dir.to_string_lossy().to_string();
 
+        // Remove stale DevToolsActivePort before spawning
+        let _ = std::fs::remove_file(profile_dir.join("DevToolsActivePort"));
+
         let mut cmd = Command::new(&bin);
         cmd.arg(format!("--app={}", target_url))
             .arg(format!("--user-data-dir={}", profile_str))
             .arg("--class=mooddown-app")
             .arg("--name=mooddown-app")
+            .arg("--remote-debugging-port=0")
+            .arg("--remote-allow-origins=*")
             .arg("--no-first-run")
             .arg("--no-default-browser-check")
-            .arg("--disable-features=Vulkan,Translate")
+            .arg("--disable-extensions")
+            .arg("--disable-default-apps")
+            .arg("--disable-component-extensions-with-background-pages")
+            .arg("--disable-features=Vulkan,Translate,GlobalMediaControls,MediaRouter,DialMediaRouteProvider")
             .arg("--window-size=1200,750");
 
         let child = cmd.spawn().map_err(|e| format!("Failed to launch browser ({}): {}", bin, e))?;

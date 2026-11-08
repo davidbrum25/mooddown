@@ -1,4 +1,5 @@
 pub mod browser;
+pub mod cdp;
 pub mod commands;
 pub mod config;
 #[cfg(target_os = "linux")]
@@ -22,6 +23,9 @@ pub fn run() {
     {
         dbus_service::start_dbus_service(browser_manager.clone());
     }
+
+    // Start Chrome DevTools Protocol guardian to block browser hotkeys & internal Chrome windows
+    cdp::start_cdp_guardian(BrowserManager::profile_dir());
 
     let config = MooddownConfig::load();
     let _ = KWinController::install_and_reload(&config);

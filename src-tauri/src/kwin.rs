@@ -33,6 +33,7 @@ impl KWinController {
     var isPinned = {pinned};
     var isAnimating = false;
     var targetWindow = null;
+    var mainChatWindow = null;
     var currentStep = 0;
     var totalSteps = Math.max(6, Math.round(animDuration / 16));
     var slideTimer = new QTimer();
@@ -78,10 +79,24 @@ impl KWinController {
     }}
 
     function findMooddownWindow() {{
+        if (mainChatWindow) {{
+            var stillExists = false;
+            var all = workspace.windowList();
+            for (var j = 0; j < all.length; j++) {{
+                if (all[j] === mainChatWindow) {{
+                    stillExists = true;
+                    break;
+                }}
+            }}
+            if (stillExists) return mainChatWindow;
+            mainChatWindow = null;
+        }}
+
         var windows = workspace.windowList();
         for (var i = 0; i < windows.length; i++) {{
             var w = windows[i];
             if (isMooddownChatWindow(w)) {{
+                mainChatWindow = w;
                 return w;
             }}
         }}
@@ -209,9 +224,23 @@ impl KWinController {
         applyWindowProperties(existing);
     }}
 
-    // Automatically style and slide down the chat window as soon as Chrome creates it
+    // Automatically style and slide down the chat window as soon as Chrome creates it,
+    // and block any secondary Chrome windows (e.g. Ctrl+N, Ctrl+Shift+N, Downloads popup) from the same PID
     workspace.windowAdded.connect(function(w) {{
+        if (!w) return;
+        var mainWin = findMooddownWindow();
+
+        // If a main chat window already exists and the same browser process tries to spawn another window, close it immediately
+        if (mainWin && w !== mainWin && w.pid && mainWin.pid && w.pid === mainWin.pid) {{
+            console.log("[Mooddown] Blocking secondary browser window from Mooddown PID: " + w.caption);
+            lastShowTime = Date.now();
+            w.closeWindow();
+            workspace.activeWindow = mainWin;
+            return;
+        }}
+
         if (isMooddownChatWindow(w)) {{
+            mainChatWindow = w;
             console.log("[Mooddown] Detected new AI chat window: " + w.resourceClass);
             slideDown(w);
         }}
@@ -219,9 +248,19 @@ impl KWinController {
 
     // Auto-hide when focus is lost
     workspace.windowActivated.connect(function(client) {{
-        if (!autoHideOnBlur || isPinned || isAnimating || !client) return;
-        if (Date.now() - lastShowTime < 400) return;
+        if (!client) return;
         var w = findMooddownWindow();
+
+        // If focus shifted to a stray secondary window from the same browser PID, close it and keep main window active
+        if (w && client !== w && client.pid && w.pid && client.pid === w.pid) {{
+            lastShowTime = Date.now();
+            client.closeWindow();
+            workspace.activeWindow = w;
+            return;
+        }}
+
+        if (!autoHideOnBlur || isPinned || isAnimating) return;
+        if (Date.now() - lastShowTime < 400) return;
         if (w && !w.minimized && client !== w) {{
             lastAutoHideTime = Date.now();
             slideUp(w);
