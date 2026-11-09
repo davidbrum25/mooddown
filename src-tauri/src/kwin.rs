@@ -275,10 +275,46 @@ impl KWinController {
         }}
     }}
 
+    var saveTimer = new QTimer();
+    saveTimer.interval = 800;
+    saveTimer.singleShot = true;
+    saveTimer.timeout.connect(function() {{
+        var wPct = Math.round(widthPct * 100);
+        var hPct = Math.round(heightPct * 100);
+        console.log("[Mooddown] Persisting user resized window geometry: " + wPct + "% x " + hPct + "%");
+        callDBus("com.mooddown.Daemon", "/Mooddown", "com.mooddown.Daemon", "SaveWindowSize", wPct, hPct);
+    }});
+
+    function setupWindowListeners(w) {{
+        if (!w || w.__mooddownListenersInstalled) return;
+        w.__mooddownListenersInstalled = true;
+
+        w.frameGeometryChanged.connect(function() {{
+            if (isAnimating || w.minimized) return;
+            var fg = w.frameGeometry;
+            if (!fg || fg.width <= 200 || fg.height <= 150) return;
+
+            var area = getTargetScreenArea();
+            var newW = Math.round(fg.width);
+            var newH = Math.round(fg.height);
+
+            currentW = newW;
+            currentH = newH;
+            widthPct = Math.min(1.0, Math.max(0.2, newW / area.width));
+            heightPct = Math.min(1.0, Math.max(0.2, newH / area.height));
+
+            // Keep horizontally centered if resized from bottom
+            currentX = Math.round(area.x + (area.width - currentW) / 2);
+
+            saveTimer.start();
+        }});
+    }}
+
     // Style any existing window if script was reloaded while window was open
     var existing = findMooddownWindow();
     if (existing) {{
         applyWindowProperties(existing);
+        setupWindowListeners(existing);
     }}
 
     // Automatically style and slide down the chat window as soon as Chrome creates it,
@@ -299,6 +335,7 @@ impl KWinController {
         if (isMooddownChatWindow(w)) {{
             mainChatWindow = w;
             console.log("[Mooddown] Detected new AI chat window: " + w.resourceClass);
+            setupWindowListeners(w);
             slideDown(w);
         }}
     }});

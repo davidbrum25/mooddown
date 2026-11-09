@@ -14,7 +14,7 @@ struct CdpTarget {
     url: String,
 }
 
-const MOODDOWN_GUARD_JS: &str = r#"
+const MOODDOWN_GUARD_JS: &str = r##"
 (function() {
     if (window.__mooddownHotkeyGuardInstalled) return;
     window.__mooddownHotkeyGuardInstalled = true;
@@ -58,8 +58,151 @@ const MOODDOWN_GUARD_JS: &str = r#"
             }
         }
     }, true);
+
+    // Antigravity-styled Interactive Resize Handles
+    function setupResizeHandles() {
+        if (document.getElementById("__mooddown_resize_container")) return;
+        if (!document.body) return;
+
+        var container = document.createElement("div");
+        container.id = "__mooddown_resize_container";
+        container.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:2147483647;";
+
+        // Bottom handle (Antigravity drag bar with centered glowing indicator)
+        var bottomBar = document.createElement("div");
+        bottomBar.id = "__mooddown_handle_bottom";
+        bottomBar.style.cssText = "position:fixed;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;pointer-events:auto;user-select:none;display:flex;align-items:center;justify-content:center;transition:background 0.2s;box-sizing:border-box;";
+
+        var dragPill = document.createElement("div");
+        dragPill.style.cssText = "width:52px;height:4px;border-radius:2px;background:rgba(255,255,255,0.25);box-shadow:0 0 8px rgba(0,0,0,0.6);pointer-events:none;transition:all 0.2s ease;";
+        bottomBar.appendChild(dragPill);
+
+        bottomBar.addEventListener("mouseenter", function() {
+            bottomBar.style.background = "linear-gradient(to top, rgba(56, 189, 248, 0.2), transparent)";
+            dragPill.style.background = "#38bdf8";
+            dragPill.style.boxShadow = "0 0 12px rgba(56, 189, 248, 0.6)";
+            dragPill.style.width = "72px";
+        });
+        bottomBar.addEventListener("mouseleave", function() {
+            if (!isDragging) {
+                bottomBar.style.background = "transparent";
+                dragPill.style.background = "rgba(255,255,255,0.25)";
+                dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.6)";
+                dragPill.style.width = "52px";
+            }
+        });
+
+        // Left handle
+        var leftBar = document.createElement("div");
+        leftBar.style.cssText = "position:fixed;top:0;bottom:14px;left:0;width:8px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;";
+        leftBar.addEventListener("mouseenter", function() {
+            leftBar.style.background = "linear-gradient(to right, rgba(56, 189, 248, 0.18), transparent)";
+        });
+        leftBar.addEventListener("mouseleave", function() {
+            if (!isDragging) leftBar.style.background = "transparent";
+        });
+
+        // Right handle
+        var rightBar = document.createElement("div");
+        rightBar.style.cssText = "position:fixed;top:0;bottom:14px;right:0;width:8px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;";
+        rightBar.addEventListener("mouseenter", function() {
+            rightBar.style.background = "linear-gradient(to left, rgba(56, 189, 248, 0.18), transparent)";
+        });
+        rightBar.addEventListener("mouseleave", function() {
+            if (!isDragging) rightBar.style.background = "transparent";
+        });
+
+        // Bottom-Left corner
+        var blCorner = document.createElement("div");
+        blCorner.style.cssText = "position:fixed;bottom:0;left:0;width:18px;height:18px;cursor:nesw-resize;pointer-events:auto;user-select:none;z-index:2147483648;";
+
+        // Bottom-Right corner
+        var brCorner = document.createElement("div");
+        brCorner.style.cssText = "position:fixed;bottom:0;right:0;width:18px;height:18px;cursor:nwse-resize;pointer-events:auto;user-select:none;z-index:2147483648;";
+
+        container.appendChild(bottomBar);
+        container.appendChild(leftBar);
+        container.appendChild(rightBar);
+        container.appendChild(blCorner);
+        container.appendChild(brCorner);
+
+        var isDragging = false;
+        var dragEdge = null;
+        var startX = 0;
+        var startY = 0;
+
+        function startDrag(edge, e) {
+            if (e.button !== 0) return;
+            isDragging = true;
+            dragEdge = edge;
+            startX = e.screenX;
+            startY = e.screenY;
+            document.body.style.userSelect = "none";
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        bottomBar.addEventListener("mousedown", function(e) { startDrag("bottom", e); });
+        leftBar.addEventListener("mousedown", function(e) { startDrag("left", e); });
+        rightBar.addEventListener("mousedown", function(e) { startDrag("right", e); });
+        blCorner.addEventListener("mousedown", function(e) { startDrag("bl", e); });
+        brCorner.addEventListener("mousedown", function(e) { startDrag("br", e); });
+
+        window.addEventListener("mousemove", function(e) {
+            if (!isDragging) return;
+            var dx = e.screenX - startX;
+            var dy = e.screenY - startY;
+            startX = e.screenX;
+            startY = e.screenY;
+
+            var dW = 0;
+            var dH = 0;
+
+            if (dragEdge === "bottom") {
+                dH = dy;
+            } else if (dragEdge === "right") {
+                dW = dx * 2;
+            } else if (dragEdge === "left") {
+                dW = -dx * 2;
+            } else if (dragEdge === "br") {
+                dW = dx * 2;
+                dH = dy;
+            } else if (dragEdge === "bl") {
+                dW = -dx * 2;
+                dH = dy;
+            }
+
+            if (dW !== 0 || dH !== 0) {
+                var newW = Math.max(380, window.outerWidth + dW);
+                var newH = Math.max(260, window.outerHeight + dH);
+                window.resizeTo(newW, newH);
+            }
+        }, true);
+
+        window.addEventListener("mouseup", function() {
+            if (isDragging) {
+                isDragging = false;
+                dragEdge = null;
+                document.body.style.userSelect = "";
+                bottomBar.style.background = "transparent";
+                dragPill.style.background = "rgba(255,255,255,0.25)";
+                dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.6)";
+                dragPill.style.width = "52px";
+                leftBar.style.background = "transparent";
+                rightBar.style.background = "transparent";
+            }
+        }, true);
+
+        document.body.appendChild(container);
+    }
+
+    if (document.body) {
+        setupResizeHandles();
+    } else {
+        document.addEventListener("DOMContentLoaded", setupResizeHandles);
+    }
 })();
-"#;
+"##;
 
 fn http_get(port: u16, path: &str) -> Option<String> {
     let addr = format!("127.0.0.1:{}", port);

@@ -23,6 +23,17 @@ impl MooddownDbusService {
         crate::settings_server::open_settings_browser();
     }
 
+    fn save_window_size(&self, width_percent: u32, height_percent: u32) {
+        let mut config = MooddownConfig::load();
+        let clamped_w = width_percent.clamp(20, 100);
+        let clamped_h = height_percent.clamp(20, 100);
+        if config.window.width_percent != clamped_w || config.window.height_percent != clamped_h {
+            config.window.width_percent = clamped_w;
+            config.window.height_percent = clamped_h;
+            let _ = config.save();
+        }
+    }
+
     fn quit(&self) {
         crate::settings_server::close_settings_browser();
         self.browser_manager.kill_existing();
