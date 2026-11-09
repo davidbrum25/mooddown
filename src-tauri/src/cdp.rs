@@ -71,54 +71,54 @@ const MOODDOWN_GUARD_JS: &str = r##"
         // Bottom handle (Antigravity drag bar with centered glowing indicator)
         var bottomBar = document.createElement("div");
         bottomBar.id = "__mooddown_handle_bottom";
-        bottomBar.style.cssText = "position:fixed;bottom:0;left:0;right:0;height:12px;cursor:ns-resize;pointer-events:auto;user-select:none;display:flex;align-items:center;justify-content:center;transition:background 0.2s;box-sizing:border-box;";
+        bottomBar.style.cssText = "position:fixed;bottom:0;left:0;right:0;height:14px;cursor:ns-resize;pointer-events:auto;user-select:none;display:flex;align-items:center;justify-content:center;transition:background 0.2s;box-sizing:border-box;touch-action:none;";
 
         var dragPill = document.createElement("div");
-        dragPill.style.cssText = "width:52px;height:4px;border-radius:2px;background:rgba(255,255,255,0.25);box-shadow:0 0 8px rgba(0,0,0,0.6);pointer-events:none;transition:all 0.2s ease;";
+        dragPill.style.cssText = "width:56px;height:4px;border-radius:2px;background:rgba(255,255,255,0.3);box-shadow:0 0 8px rgba(0,0,0,0.7);pointer-events:none;transition:all 0.2s ease;";
         bottomBar.appendChild(dragPill);
 
-        bottomBar.addEventListener("mouseenter", function() {
-            bottomBar.style.background = "linear-gradient(to top, rgba(56, 189, 248, 0.2), transparent)";
+        bottomBar.addEventListener("pointerenter", function() {
+            bottomBar.style.background = "linear-gradient(to top, rgba(56, 189, 248, 0.25), transparent)";
             dragPill.style.background = "#38bdf8";
-            dragPill.style.boxShadow = "0 0 12px rgba(56, 189, 248, 0.6)";
-            dragPill.style.width = "72px";
+            dragPill.style.boxShadow = "0 0 12px rgba(56, 189, 248, 0.8)";
+            dragPill.style.width = "80px";
         });
-        bottomBar.addEventListener("mouseleave", function() {
+        bottomBar.addEventListener("pointerleave", function() {
             if (!isDragging) {
                 bottomBar.style.background = "transparent";
-                dragPill.style.background = "rgba(255,255,255,0.25)";
-                dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.6)";
-                dragPill.style.width = "52px";
+                dragPill.style.background = "rgba(255,255,255,0.3)";
+                dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.7)";
+                dragPill.style.width = "56px";
             }
         });
 
         // Left handle
         var leftBar = document.createElement("div");
-        leftBar.style.cssText = "position:fixed;top:0;bottom:14px;left:0;width:8px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;";
-        leftBar.addEventListener("mouseenter", function() {
-            leftBar.style.background = "linear-gradient(to right, rgba(56, 189, 248, 0.18), transparent)";
+        leftBar.style.cssText = "position:fixed;top:0;bottom:16px;left:0;width:10px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;touch-action:none;";
+        leftBar.addEventListener("pointerenter", function() {
+            leftBar.style.background = "linear-gradient(to right, rgba(56, 189, 248, 0.2), transparent)";
         });
-        leftBar.addEventListener("mouseleave", function() {
+        leftBar.addEventListener("pointerleave", function() {
             if (!isDragging) leftBar.style.background = "transparent";
         });
 
         // Right handle
         var rightBar = document.createElement("div");
-        rightBar.style.cssText = "position:fixed;top:0;bottom:14px;right:0;width:8px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;";
-        rightBar.addEventListener("mouseenter", function() {
-            rightBar.style.background = "linear-gradient(to left, rgba(56, 189, 248, 0.18), transparent)";
+        rightBar.style.cssText = "position:fixed;top:0;bottom:16px;right:0;width:10px;cursor:ew-resize;pointer-events:auto;user-select:none;transition:background 0.2s;touch-action:none;";
+        rightBar.addEventListener("pointerenter", function() {
+            rightBar.style.background = "linear-gradient(to left, rgba(56, 189, 248, 0.2), transparent)";
         });
-        rightBar.addEventListener("mouseleave", function() {
+        rightBar.addEventListener("pointerleave", function() {
             if (!isDragging) rightBar.style.background = "transparent";
         });
 
         // Bottom-Left corner
         var blCorner = document.createElement("div");
-        blCorner.style.cssText = "position:fixed;bottom:0;left:0;width:18px;height:18px;cursor:nesw-resize;pointer-events:auto;user-select:none;z-index:2147483648;";
+        blCorner.style.cssText = "position:fixed;bottom:0;left:0;width:24px;height:24px;cursor:nesw-resize;pointer-events:auto;user-select:none;z-index:2147483648;touch-action:none;";
 
         // Bottom-Right corner
         var brCorner = document.createElement("div");
-        brCorner.style.cssText = "position:fixed;bottom:0;right:0;width:18px;height:18px;cursor:nwse-resize;pointer-events:auto;user-select:none;z-index:2147483648;";
+        brCorner.style.cssText = "position:fixed;bottom:0;right:0;width:24px;height:24px;cursor:nwse-resize;pointer-events:auto;user-select:none;z-index:2147483648;touch-action:none;";
 
         container.appendChild(bottomBar);
         container.appendChild(leftBar);
@@ -127,71 +127,89 @@ const MOODDOWN_GUARD_JS: &str = r##"
         container.appendChild(brCorner);
 
         var isDragging = false;
+        var activeTarget = null;
         var dragEdge = null;
-        var startX = 0;
-        var startY = 0;
+        var initialW = 0;
+        var initialH = 0;
+        var startScreenX = 0;
+        var startScreenY = 0;
 
-        function startDrag(edge, e) {
+        function startDrag(target, edge, e) {
             if (e.button !== 0) return;
             isDragging = true;
+            activeTarget = target;
             dragEdge = edge;
-            startX = e.screenX;
-            startY = e.screenY;
+            initialW = window.outerWidth;
+            initialH = window.outerHeight;
+            startScreenX = e.screenX;
+            startScreenY = e.screenY;
+
+            try {
+                target.setPointerCapture(e.pointerId);
+            } catch (err) {}
+
             document.body.style.userSelect = "none";
             e.preventDefault();
             e.stopPropagation();
         }
 
-        bottomBar.addEventListener("mousedown", function(e) { startDrag("bottom", e); });
-        leftBar.addEventListener("mousedown", function(e) { startDrag("left", e); });
-        rightBar.addEventListener("mousedown", function(e) { startDrag("right", e); });
-        blCorner.addEventListener("mousedown", function(e) { startDrag("bl", e); });
-        brCorner.addEventListener("mousedown", function(e) { startDrag("br", e); });
+        bottomBar.addEventListener("pointerdown", function(e) { startDrag(bottomBar, "bottom", e); });
+        leftBar.addEventListener("pointerdown", function(e) { startDrag(leftBar, "left", e); });
+        rightBar.addEventListener("pointerdown", function(e) { startDrag(rightBar, "right", e); });
+        blCorner.addEventListener("pointerdown", function(e) { startDrag(blCorner, "bl", e); });
+        brCorner.addEventListener("pointerdown", function(e) { startDrag(brCorner, "br", e); });
 
-        window.addEventListener("mousemove", function(e) {
+        function onPointerMove(e) {
             if (!isDragging) return;
-            var dx = e.screenX - startX;
-            var dy = e.screenY - startY;
-            startX = e.screenX;
-            startY = e.screenY;
+            var totalDx = e.screenX - startScreenX;
+            var totalDy = e.screenY - startScreenY;
 
-            var dW = 0;
-            var dH = 0;
+            var newW = initialW;
+            var newH = initialH;
 
             if (dragEdge === "bottom") {
-                dH = dy;
+                newH = initialH + totalDy;
             } else if (dragEdge === "right") {
-                dW = dx * 2;
+                newW = initialW + (totalDx * 2);
             } else if (dragEdge === "left") {
-                dW = -dx * 2;
+                newW = initialW - (totalDx * 2);
             } else if (dragEdge === "br") {
-                dW = dx * 2;
-                dH = dy;
+                newW = initialW + (totalDx * 2);
+                newH = initialH + totalDy;
             } else if (dragEdge === "bl") {
-                dW = -dx * 2;
-                dH = dy;
+                newW = initialW - (totalDx * 2);
+                newH = initialH + totalDy;
             }
 
-            if (dW !== 0 || dH !== 0) {
-                var newW = Math.max(380, window.outerWidth + dW);
-                var newH = Math.max(260, window.outerHeight + dH);
-                window.resizeTo(newW, newH);
-            }
-        }, true);
+            var clampedW = Math.max(380, Math.round(newW));
+            var clampedH = Math.max(260, Math.round(newH));
+            window.resizeTo(clampedW, clampedH);
+        }
 
-        window.addEventListener("mouseup", function() {
-            if (isDragging) {
-                isDragging = false;
-                dragEdge = null;
-                document.body.style.userSelect = "";
-                bottomBar.style.background = "transparent";
-                dragPill.style.background = "rgba(255,255,255,0.25)";
-                dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.6)";
-                dragPill.style.width = "52px";
-                leftBar.style.background = "transparent";
-                rightBar.style.background = "transparent";
+        function endDrag(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            dragEdge = null;
+
+            if (activeTarget && e.pointerId !== undefined) {
+                try {
+                    activeTarget.releasePointerCapture(e.pointerId);
+                } catch (err) {}
             }
-        }, true);
+            activeTarget = null;
+
+            document.body.style.userSelect = "";
+            bottomBar.style.background = "transparent";
+            dragPill.style.background = "rgba(255,255,255,0.3)";
+            dragPill.style.boxShadow = "0 0 8px rgba(0,0,0,0.7)";
+            dragPill.style.width = "56px";
+            leftBar.style.background = "transparent";
+            rightBar.style.background = "transparent";
+        }
+
+        window.addEventListener("pointermove", onPointerMove, true);
+        window.addEventListener("pointerup", endDrag, true);
+        window.addEventListener("pointercancel", endDrag, true);
 
         document.body.appendChild(container);
     }
