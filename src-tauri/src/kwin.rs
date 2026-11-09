@@ -281,8 +281,10 @@ impl KWinController {
     saveTimer.timeout.connect(function() {{
         var wPct = Math.round(widthPct * 100);
         var hPct = Math.round(heightPct * 100);
-        console.log("[Mooddown] Persisting user resized window geometry: " + wPct + "% x " + hPct + "%");
-        callDBus("com.mooddown.Daemon", "/Mooddown", "com.mooddown.Daemon", "SaveWindowSize", wPct, hPct);
+        if (wPct >= 20 && hPct >= 20) {{
+            console.log("[Mooddown] Persisting user resized window geometry: " + wPct + "% x " + hPct + "%");
+            callDBus("com.mooddown.Daemon", "/Mooddown", "com.mooddown.Daemon", "SaveWindowSize", wPct, hPct);
+        }}
     }});
 
     function setupWindowListeners(w) {{
@@ -290,11 +292,14 @@ impl KWinController {
         w.__mooddownListenersInstalled = true;
 
         w.frameGeometryChanged.connect(function() {{
-            if (isAnimating || w.minimized) return;
+            if (isAnimating || w.minimized || !isSlidingDown) return;
             var fg = w.frameGeometry;
-            if (!fg || fg.width <= 200 || fg.height <= 150) return;
+            if (!fg || fg.width <= 250 || fg.height <= 200) return;
 
             var area = getTargetScreenArea();
+            // Only update geometry when the window is resting at the top of the screen (not offscreen or transitioning)
+            if (Math.abs(fg.y - area.y) > 12) return;
+
             var newW = Math.round(fg.width);
             var newH = Math.round(fg.height);
 

@@ -219,6 +219,9 @@ const MOODDOWN_GUARD_JS: &str = r##"
     } else {
         document.addEventListener("DOMContentLoaded", setupResizeHandles);
     }
+
+    // Re-check periodically or on SPA mutations to ensure handles are always present
+    setInterval(setupResizeHandles, 1500);
 })();
 "##;
 
